@@ -70,12 +70,13 @@ object FakeData {
         )
     )
 
+    // Actualizados para usar las imágenes locales
     val playlistTopHits = Playlist(
         id = "todays_top_hits",
         title = "Today's Top Hits",
         curator = "Spotify",
         saves = 55242100,
-        coverUrl = "https://i.scdn.co/image/ab67706f00000003b0c6f2283038686604245f06",
+        coverResId = R.drawable.toadaytophits,
         description = "The hottest 60 Cover: Sabrina Carpenter",
         tracks = listOf(
             t("busy_woman", "Busy Woman", "Sabrina Carpenter", 3, 5),
@@ -94,7 +95,7 @@ object FakeData {
         title = "Viva Latino",
         curator = "Spotify",
         saves = 169693200,
-        coverUrl = "https://i.scdn.co/image/ab67706f000000037344c26447594943f59043c9",
+        coverResId = R.drawable.latino,
         description = "Top Latin hits elevando nuestra música.",
         tracks = listOf(
             t("morena", "Morena", "Peso Pluma", 3, 22),
@@ -113,7 +114,7 @@ object FakeData {
         title = "RapCaviar",
         curator = "Spotify",
         saves = 153328300,
-        coverUrl = "https://i.scdn.co/image/ab67706f00000003c535444e21b03831ed7324ab",
+        coverResId = R.drawable.rapcabviar,
         description = "New music from Drake, Offset and Young Nudy.",
         tracks = listOf(
             t("gimme_a_hug", "GIMME A HUG", "Drake", 3, 36),

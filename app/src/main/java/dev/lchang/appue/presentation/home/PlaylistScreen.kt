@@ -3,6 +3,8 @@ package dev.lchang.appue.presentation.home
 
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,17 +15,16 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +46,11 @@ import dev.lchang.appue.ui.theme.TextSecondary
 import kotlin.time.Duration
 
 @Composable
-fun PlaylistScreen(playlistId: String, onBack: () -> Unit) {
+fun PlaylistScreen(
+    playlistId: String,
+    onBack: () -> Unit,
+    onHomeClick: () -> Unit = {} // Nuevo parámetro para navegar a Home
+) {
     val playlist = remember(playlistId) { FakeData.getPlaylist(playlistId) }
     if (playlist == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -57,11 +62,29 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
+    // Nuevos estados para controlar play/pause y la canción actual
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentTrackId by remember { mutableStateOf<String?>(null) }
+
+    // Control de estado de reproducción
     val onTrackClick = { track: Track ->
-        mediaPlayer?.release() // Release previous player
-        track.musicResId?.let { musicRes ->
-            mediaPlayer = MediaPlayer.create(context, musicRes).apply {
-                start()
+        if (currentTrackId == track.id && isPlaying) {
+            // Pausa la canción actual
+            mediaPlayer?.pause()
+            isPlaying = false
+        } else if (currentTrackId == track.id) {
+            // Reanuda la canción actual
+            mediaPlayer?.start()
+            isPlaying = true
+        } else {
+            // Reproduce una nueva canción
+            mediaPlayer?.release() // Release previous player
+            currentTrackId = track.id
+            track.musicResId?.let { musicRes ->
+                mediaPlayer = MediaPlayer.create(context, musicRes).apply {
+                    start()
+                }
+                isPlaying = true
             }
         }
     }
@@ -94,6 +117,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit) {
         topBar = {
             PlaylistTopBar(
                 onBack = onBack,
+                onHomeClick = onHomeClick, // Pasando el callback para el botón Home
                 title = playlist.title,
                 scrolledRatio = scrolledRatio
             )
@@ -101,27 +125,60 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit) {
     ) { inner ->
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(top = 0.dp, bottom = inner.calculateBottomPadding() + 24.dp)
+            contentPadding = PaddingValues(
+                top = 0.dp,
+                bottom = inner.calculateBottomPadding() + 24.dp
+            ),
+            modifier = Modifier.fillMaxSize() // Asegurarse de que la lista llene toda la pantalla
         ) {
             item {
                 PlaylistHeader(
                     playlist = playlist,
                     height = headerHeight,
+                    isPlaying = isPlaying && currentTrackId == playlist.tracks.firstOrNull()?.id,
                     onPlay = {
                         playlist.tracks.firstOrNull()?.let(onTrackClick)
                     }
                 )
             }
+
+            // Añadir un espacio visible entre el header y las canciones para mejor separación
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Canciones",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // Lista de canciones mejorada para mejor desplazamiento
             itemsIndexed(playlist.tracks) { index, track ->
-                TrackRow(index = index, track = track, onClick = { onTrackClick(track) })
-                HorizontalDivider(color = Color(0xFF1F1F1F), thickness = 1.dp, modifier = Modifier.padding(start = 72.dp))
+                TrackRow(
+                    index = index,
+                    track = track,
+                    isPlaying = isPlaying && currentTrackId == track.id,
+                    onClick = { onTrackClick(track) }
+                )
+                HorizontalDivider(
+                    color = Color(0xFF1F1F1F),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(start = 72.dp)
+                )
+            }
+
+            // Espacio adicional al final para mejor desplazamiento
+            item {
+                Spacer(modifier = Modifier.height(60.dp))
             }
         }
     }
 }
 
 @Composable
-private fun PlaylistTopBar(onBack: () -> Unit, title: String, scrolledRatio: Float) {
+private fun PlaylistTopBar(onBack: () -> Unit, onHomeClick: () -> Unit, title: String, scrolledRatio: Float) {
     val showTitle = scrolledRatio > 0.6f
     TopAppBar(
         navigationIcon = {
@@ -134,7 +191,11 @@ private fun PlaylistTopBar(onBack: () -> Unit, title: String, scrolledRatio: Flo
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
-        actions = {},
+        actions = {
+            IconButton(onClick = onHomeClick) {
+                Icon(Icons.Filled.Home, contentDescription = "Home")
+            }
+        },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = Color.Black.copy(alpha = scrolledRatio * 0.9f),
             scrolledContainerColor = Color.Black
@@ -143,7 +204,7 @@ private fun PlaylistTopBar(onBack: () -> Unit, title: String, scrolledRatio: Flo
 }
 
 @Composable
-fun PlaylistHeader(playlist: Playlist, height: Dp, onPlay: () -> Unit) {
+fun PlaylistHeader(playlist: Playlist, height: Dp, onPlay: () -> Unit, isPlaying: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -207,7 +268,7 @@ fun PlaylistHeader(playlist: Playlist, height: Dp, onPlay: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                PlayButton(onClick = onPlay)
+                PlayButton(onClick = onPlay, isPlaying = isPlaying)
             }
         }
     }
@@ -239,17 +300,19 @@ private fun ActionRow() {
 }
 
 @Composable
-private fun PlayButton(onClick: () -> Unit) {
+private fun PlayButton(onClick: () -> Unit, isPlaying: Boolean) {
     FilledIconButton(
         onClick = onClick,
         colors = IconButtonDefaults.filledIconButtonColors(containerColor = PlayGreen)
     ) {
-        Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.Black)
+        // Icon cambia según el estado de reproducción
+        val icon: ImageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
+        Icon(icon, contentDescription = if (isPlaying) "Pause" else "Play", tint = Color.Black)
     }
 }
 
 @Composable
-fun TrackRow(index: Int, track: Track, onClick: () -> Unit) {
+fun TrackRow(index: Int, track: Track, onClick: () -> Unit, isPlaying: Boolean) {
     val interaction = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
@@ -278,6 +341,18 @@ fun TrackRow(index: Int, track: Track, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Text(track.duration.format(), color = TextSecondary, fontSize = 12.sp)
         IconButton(onClick = { }) { Icon(Icons.Default.MoreVert, contentDescription = "More for ${track.title}") }
+        // Corazón para "me gusta", cambia de color si la canción está en reproducción
+        val tintColor by animateFloatAsState(
+            targetValue = if (isPlaying) 1f else 0.5f,
+            animationSpec = tween(durationMillis = 300)
+        )
+        IconButton(onClick = { }) {
+            Icon(
+                imageVector = Icons.Default.FavoriteBorder,
+                contentDescription = "Like ${track.title}",
+                tint = Color.Red.copy(alpha = tintColor)
+            )
+        }
     }
 }
 

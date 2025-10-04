@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -30,22 +31,35 @@ fun AppNavHost() {
     Scaffold(
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
-            NavigationBar {
-                items.forEach { item ->
-                    val selected = currentRoute == item.route
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = item.icon,
-                        label = { Text(item.label) }
-                    )
+            val currentDestination = navBackStackEntry?.destination
+            val currentRoute = currentDestination?.route
+
+            // Solo mostramos la barra inferior cuando estamos en una pantalla principal
+            val showBottomBar = currentRoute == AppDestinations.HOME ||
+                               currentRoute == AppDestinations.SEARCH ||
+                               currentRoute == AppDestinations.LIBRARY
+
+            if (showBottomBar) {
+                NavigationBar {
+                    items.forEach { item ->
+                        val selected = currentRoute == item.route
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                // Navegación mejorada para asegurar que Home siempre regresa al inicio
+                                navController.navigate(item.route) {
+                                    // Siempre volver a la raíz al navegar
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = item.icon,
+                            label = { Text(item.label) }
+                        )
+                    }
                 }
             }
         }
@@ -55,12 +69,27 @@ fun AppNavHost() {
             startDestination = AppDestinations.HOME,
             modifier = Modifier.padding(inner)
         ) {
-            composable(AppDestinations.HOME) { HomeScreen(onPlaylistClick = { id -> navController.navigate(AppDestinations.playlistRoute(id)) }) }
+            composable(AppDestinations.HOME) {
+                HomeScreen(onPlaylistClick = { id ->
+                    navController.navigate(AppDestinations.playlistRoute(id))
+                })
+            }
             composable(AppDestinations.SEARCH) { SearchScreen() }
             composable(AppDestinations.LIBRARY) { LibraryScreen() }
             composable("${AppDestinations.PLAYLIST}/{${AppDestinations.PLAYLIST_ID_ARG}}") { backStack ->
                 val id = backStack.arguments?.getString(AppDestinations.PLAYLIST_ID_ARG) ?: return@composable
-                PlaylistScreen(playlistId = id, onBack = { navController.popBackStack() })
+                PlaylistScreen(
+                    playlistId = id,
+                    onBack = { navController.popBackStack() },
+                    onHomeClick = {
+                        // Añadido: Navegación directa a Home desde cualquier pantalla
+                        navController.navigate(AppDestinations.HOME) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = false
+                            }
+                        }
+                    }
+                )
             }
         }
     }
